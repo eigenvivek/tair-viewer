@@ -43,6 +43,7 @@ Shift+1/2/4  layout                          x                     close pane
 Space        play / pause                    , .                   step one frame
 - =          slower / faster                 n N                   next / previous DSA run
 b            open the other biplane view     s                     sync videos
+c            copy a link to this view
 ```
 
 ## How it works
@@ -54,6 +55,8 @@ TAIR is mirrored on a public S3 bucket with byte-range requests and CORS, so the
 - **Volumes**: downloaded with a progress bar and decompressed while streaming, then cached in memory for the session. Reopening a volume costs no new download.
 - **Fluoro**: each `*_masked.mp4` loads its `_masked_ocr.csv` to draw a timeline (amber = DSA, grey = live fluoro). The same CSV provides the `T+` clock used for sync.
 - **Sync**: the recordings are time-compressed and each plane skips its idle stretches, so the same moment sits at different video times in A and B. The leader (◆) is the pane you last clicked or controlled; the other panes chase the frame that shows the leader's `T+`.
+
+**Share** (or `c`) copies a link that reopens exactly your view: layout, files, video times, sync leader, and each volume's view, window, and crosshair.
 
 Any other public bucket works too: `?bucket=<name>&name=<label>&prefix=<dir/>`, or edit [`static/config.js`](static/config.js).
 

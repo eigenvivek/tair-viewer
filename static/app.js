@@ -260,7 +260,7 @@ class Pane {
     this.clear();
   }
   clear() {
-    this.cleanup?.(); this.cleanup = null; this.video = null; this.timeline = null;
+    this.cleanup?.(); this.cleanup = null; this.video = null; this.timeline = null; this.share = null;
     this.node = null;
     this.pathEl.textContent = ""; this.pathEl.title = "";
     this.ctl.textContent = "";
@@ -268,14 +268,14 @@ class Pane {
     this.body.append(h("div", { class: "empty" }, `pane ${this.i + 1}`, h("br"), h("span", { class: "dim" }, "select a file")));
     renderTree(); saveState();
   }
-  async open(node) {
+  async open(node, opts = {}) {
     this.clear();
     this.node = node;
     this.pathEl.textContent = `\u200e${node.path}\u200e`; this.pathEl.title = `${node.path}  (${fmtSize(node.size)})`;
     this.body.textContent = "";
     const token = (this.token = Symbol());
     const alive = () => this.token === token;
-    try { await (VIEWERS[node.kind] || viewOther)(this, node, alive); }
+    try { await (VIEWERS[node.kind] || viewOther)(this, node, alive, opts); }
     catch (err) { if (alive()) { this.body.textContent = ""; this.body.append(h("div", { class: "info" }, `failed: ${err.message}`, h("br"), h("a", { href: urlFor(node.key), target: "_blank" }, "open raw"))); } }
     renderTree(); saveState();
   }
@@ -293,10 +293,10 @@ function nextPaneIndex() {
   for (let k = 1; k <= n; k++) { const j = (active + k) % n; if (!panes[j].node) return j; }
   return (active + 1) % n;
 }
-function openInPane(node, i) {
+function openInPane(node, i, opts) {
   if (i >= layout) setLayout(i < 2 ? 2 : 4);
   setActive(i);
-  panes[i].open(node);
+  panes[i].open(node, opts);
 }
 function setLayout(n) {
   layout = n;
@@ -449,7 +449,7 @@ function follow(q, L, T, clock) {
   if (v.paused) v.play().catch(() => {});
 }
 
-function viewVideo(p, node, alive) {
+function viewVideo(p, node, alive, opts) {
   const v = h("video", { src: urlFor(node.key), controls: "", preload: "auto", playsinline: "", muted: "" });
   v.muted = true;
   p.video = v;
@@ -481,6 +481,8 @@ function viewVideo(p, node, alive) {
   if (ocrNode) attachTimeline(p, ocrNode, alive).then(tick, console.error);
   const pair = biplanePartner(node);
   if (pair) p.button(`+${pair.path.match(/FLUORO\/(\w)/)[1]}`, "Open the other biplane view in the next pane (b)", () => openInPane(pair, nextPaneIndex()));
+  if (opts.t) v.addEventListener("loadedmetadata", () => (v.currentTime = opts.t), { once: true });
+  p.share = () => ({ t: v.currentTime.toFixed(2) });
   p.cleanup = () => { v.pause(); v.removeAttribute("src"); v.load(); };
   if (!booting) v.play().catch(() => {});
 }
@@ -618,7 +620,7 @@ function fetchBuf(node, onProg) {
   return promise;
 }
 
-async function viewVolume(p, node, alive) {
+async function viewVolume(p, node, alive, opts) {
   const bar = h("i"); const msg = h("div", {}, `downloading ${fmtSize(node.size)}…`);
   const ld = h("div", { class: "loading" }, msg, h("div", { class: "bar" }, bar));
   p.body.append(ld);
@@ -648,8 +650,23 @@ async function viewVolume(p, node, alive) {
   // controls
   const views = [["A", SLICE_TYPE.AXIAL], ["C", SLICE_TYPE.CORONAL], ["S", SLICE_TYPE.SAGITTAL], ["MPR", SLICE_TYPE.MULTIPLANAR], ["3D", SLICE_TYPE.RENDER]];
   const vb = [];
-  for (const [lab, st] of views) vb.push(p.button(lab, `view: ${lab}`, (b) => { nv.setSliceType(st); vb.forEach((x) => x.classList.toggle("on", x === b)); }));
+  const setView = (k) => { nv.setSliceType(views[k][1]); vb.forEach((x, j) => x.classList.toggle("on", j === k)); };
+  views.forEach(([lab], k) => vb.push(p.button(lab, `view: ${lab}`, () => setView(k))));
   vb[isMesh ? 4 : 3].classList.add("on");
+  // shared-link state: view, window, crosshair (volume fractions), 3D azimuth/elevation
+  const nums = (s) => (s || "").split(",").map(Number).filter((x) => !Number.isNaN(x));
+  const viewIdx = views.findIndex(([lab]) => lab.toLowerCase() === opts.view);
+  if (viewIdx >= 0) setView(viewIdx);
+  if (nums(opts.xyz).length === 3) nv.scene.crosshairPos = nums(opts.xyz);
+  if (nums(opts.rot).length === 2) nv.setRenderAzimuthElevation(...nums(opts.rot));
+  if (vol && nums(opts.win).length === 2) { [vol.cal_min, vol.cal_max] = nums(opts.win); }
+  nv.updateGLVolume();
+  p.share = () => ({
+    view: views.find(([, st]) => st === nv.opts.sliceType)?.[0].toLowerCase(),
+    win: vol ? `${+vol.cal_min.toFixed(1)},${+vol.cal_max.toFixed(1)}` : undefined,
+    xyz: [...nv.scene.crosshairPos].map((x) => +x.toFixed(4)).join(","),
+    rot: nv.opts.sliceType === SLICE_TYPE.RENDER ? `${Math.round(nv.scene.renderAzimuth)},${Math.round(nv.scene.renderElevation)}` : undefined,
+  });
   if (vol) {
     const win = (lo, hi) => { vol.cal_min = lo; vol.cal_max = hi; nv.updateGLVolume(); };
     const auto = [vol.cal_min, vol.cal_max];
@@ -687,6 +704,7 @@ document.addEventListener("keydown", (e) => {
   if (k === "[" || k === "]") return go(() => setActive((active + (k === "]" ? 1 : layout - 1)) % layout));
   if (k === "s") return go(() => { syncEl.checked = !syncEl.checked; syncEl.dispatchEvent(new Event("change")); });
   if (k === "x") return go(() => p.clear());
+  if (k === "c") return go(() => shareBtn.click());
   if (k === "b" && p.node) { const o = biplanePartner(p.node); if (o) return go(() => openInPane(o, nextPaneIndex())); }
   if (p.video && [" ", ",", ".", "-", "=", "+", "n", "N"].includes(k)) {
     takeLead(p);
@@ -737,6 +755,41 @@ function saveState() {
 }
 syncEl.addEventListener("change", saveState);
 
+// ---------------------------------------------------------------- share links
+// The whole view lives in the URL hash (never sent to a server), e.g.
+//   #layout=4&sync=1&active=1&p1=00098/FLUORO/A/A1_t00_masked.mp4&t1=707.4&p3=…&view3=mpr&win3=0,600
+const enc = (v) => encodeURIComponent(v).replace(/%2F/g, "/").replace(/%2C/g, ",");
+function shareURL() {
+  const kv = [["layout", layout], ["active", active + 1]];
+  if (syncEl.checked) kv.push(["sync", 1]);
+  panes.forEach((q, i) => {
+    if (!q.node) return;
+    kv.push([`p${i + 1}`, q.node.path]);
+    for (const [k, v] of Object.entries(q.share?.() || {})) if (v != null) kv.push([`${k}${i + 1}`, v]);
+  });
+  return `${location.origin}${location.pathname}${location.search}#${kv.map(([k, v]) => `${k}=${enc(v)}`).join("&")}`;
+}
+function readHash() {
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (![1, 2, 3, 4].some((i) => q.has(`p${i}`))) return null;
+  const panes = [1, 2, 3, 4].map((i) => {
+    const path = q.get(`p${i}`); if (!path) return null;
+    const opts = {};
+    for (const k of ["t", "view", "win", "xyz", "rot"]) if (q.has(`${k}${i}`)) opts[k] = q.get(`${k}${i}`);
+    if (opts.t) opts.t = +opts.t;
+    return { path, opts };
+  });
+  return { layout: +q.get("layout") || 4, active: (+q.get("active") || 1) - 1, sync: q.get("sync") === "1", panes };
+}
+addEventListener("hashchange", () => readHash() && location.reload()); // link pasted into an open tab
+const shareBtn = $("#share");
+shareBtn.onclick = async () => {
+  const url = shareURL();
+  try { await navigator.clipboard.writeText(url); shareBtn.textContent = "copied ✓"; }
+  catch { prompt("Copy this link:", url); }
+  setTimeout(() => (shareBtn.textContent = "share"), 1500);
+};
+
 // ---------------------------------------------------------------- boot
 async function loadIndex(force = false) {
   const cached = lsGet(LS_INDEX);
@@ -765,13 +818,20 @@ async function loadIndex(force = false) {
 }
 
 (async function boot() {
-  const st = lsGet(LS_STATE) || {};
+  const link = readHash();
+  const st = link || lsGet(LS_STATE) || {};
   setLayout(st.layout || 4);
   setActive(st.active ?? 0);
   syncEl.checked = !!st.sync;
   await loadIndex();
   stateReady = true;
-  (st.panes || []).forEach((path, i) => { const n = path && BYPATH.get(path); if (n) panes[i].open(n); });
+  (st.panes || []).forEach((x, i) => {
+    const { path, opts } = typeof x === "string" ? { path: x, opts: {} } : x || {};
+    const n = path && BYPATH.get(path);
+    if (n) panes[i].open(n, opts);
+  });
+  if (link) history.replaceState(null, "", location.pathname + location.search); // later reloads use saved state
+  if (link && syncEl.checked) takeLead(panes[active]);
   booting = false;
   treeEl.focus();
 })();
