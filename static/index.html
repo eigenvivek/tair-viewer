@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bucket Viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect x=%221%22 y=%221%22 width=%226%22 height=%226%22 fill=%22%235aa9ff%22/%3E%3Crect x=%229%22 y=%221%22 width=%226%22 height=%226%22 fill=%22%23e0a63a%22/%3E%3Crect x=%221%22 y=%229%22 width=%226%22 height=%226%22 fill=%22%23e0a63a%22/%3E%3Crect x=%229%22 y=%229%22 width=%226%22 height=%226%22 fill=%22%235aa9ff%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside id="side">
+  <div id="side-head">
+    <div id="title"><b id="ds-name">…</b> <span id="ds-count" class="dim"></span></div>
+    <input id="filter" type="search" placeholder="Filter paths…  (/ to focus)" autocomplete="off" spellcheck="false">
+  </div>
+  <div id="tree" tabindex="0"></div>
+  <div id="side-foot" class="dim">
+    <span id="status">loading index…</span>
+    <button id="refresh" title="Re-list bucket">↻</button>
+    <button id="help-btn" title="Keyboard shortcuts">?</button>
+  </div>
+</aside>
+<div id="resizer"></div>
+<main>
+  <div id="toolbar">
+    <div class="seg" id="layouts">
+      <button data-layout="1" title="1 pane (Shift+1)">▢</button>
+      <button data-layout="2" title="2 panes side by side (Shift+2)">▥</button>
+      <button data-layout="4" title="2×2 (Shift+4)">⊞</button>
+    </div>
+    <label class="chk" title="Link play/pause/seek/speed across video panes (S)"><input type="checkbox" id="sync"> sync videos</label>
+    <span class="dim" id="hint">Click a file to open it in the active pane · Shift+click opens it in the next pane · 1–4 select a pane</span>
+  </div>
+  <div id="grid" data-layout="4"></div>
+</main>
+<div id="help" hidden>
+  <div class="card">
+    <h3>Keys</h3>
+    <table>
+      <tr><td>↑ ↓ / j k</td><td>move in tree</td></tr>
+      <tr><td>→ ←  / l h</td><td>expand / collapse (← jumps to parent)</td></tr>
+      <tr><td>Enter</td><td>open in active pane</td></tr>
+      <tr><td>Shift+Enter</td><td>open in next pane</td></tr>
+      <tr><td>/</td><td>filter (Esc clears)</td></tr>
+      <tr><td>[ ]</td><td>previous / next pane</td></tr>
+      <tr><td>1 2 3 4</td><td>select active pane</td></tr>
+      <tr><td>Shift+1 / 2 / 4</td><td>layout</td></tr>
+      <tr><td>x</td><td>close active pane</td></tr>
+      <tr><td>Space</td><td>play / pause active video</td></tr>
+      <tr><td>, .</td><td>step one frame back / forward</td></tr>
+      <tr><td>- =</td><td>slower / faster</td></tr>
+      <tr><td>n  N</td><td>jump to next / previous DSA run (needs the OCR timeline)</td></tr>
+      <tr><td>b</td><td>open the other biplane view (A↔B) in the next pane</td></tr>
+      <tr><td>s</td><td>toggle video sync</td></tr>
+    </table>
+    <p class="dim">Videos stream with HTTP range requests, like YouTube. Volumes download fully (with a progress bar) and stay cached in memory for the session.</p>
+    <button onclick="this.closest('#help').hidden=true">close</button>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
