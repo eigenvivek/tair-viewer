@@ -29,6 +29,7 @@
       <button data-layout="4" title="2×2 (Shift+4)">⊞</button>
     </div>
     <label class="chk" title="Link play/pause/seek/speed across video panes (S)"><input type="checkbox" id="sync"> sync videos</label>
+    <button id="share" title="Copy a link to exactly this view (c)">share</button>
     <span class="dim" id="hint">Click a file to open it in the active pane · Shift+click opens it in the next pane · 1–4 select a pane</span>
   </div>
   <div id="grid" data-layout="4"></div>
@@ -52,6 +53,7 @@
       <tr><td>n  N</td><td>jump to next / previous DSA run (needs the OCR timeline)</td></tr>
       <tr><td>b</td><td>open the other biplane view (A↔B) in the next pane</td></tr>
       <tr><td>s</td><td>toggle video sync</td></tr>
+      <tr><td>c</td><td>copy a link to this view</td></tr>
     </table>
     <p class="dim">Videos stream with HTTP range requests, like YouTube. Volumes download fully (with a progress bar) and stay cached in memory for the session.</p>
     <button onclick="this.closest('#help').hidden=true">close</button>
